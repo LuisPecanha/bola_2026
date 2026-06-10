@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bolão Copa 2026</title>
+  <script src="firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0B1120;
+      --card: #131B2E;
+      --border: #1E2D45;
+      --green: #00C851;
+      --text: #E0E8F0;
+      --muted: #6B7A8D;
+      --blue: #1565C0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Screens ── */
+    .screen {
+      display: none;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .screen.active { display: flex; }
+
+    #screen-app { flex-direction: column; }
+    #screen-app.active { display: flex; }
+
+    /* ── Auth cards ── */
+    .auth-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    .auth-card h1 { font-size: 1.6rem; font-weight: 800; color: var(--green); margin-bottom: 0.3rem; }
+    .auth-card .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.75rem; }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label {
+      display: block; font-size: 0.8rem; color: var(--muted);
+      margin-bottom: 0.4rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="password"] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); padding: 0.7rem 1rem;
+      font-size: 1rem; outline: none; transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: var(--green); }
+
+    .btn-primary {
+      width: 100%; background: var(--green); color: #0B1120;
+      border: none; border-radius: 8px; padding: 0.8rem 1rem;
+      font-size: 1rem; font-weight: 800; cursor: pointer;
+      transition: opacity 0.15s; margin-top: 0.5rem;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .error-msg { color: #ff5555; font-size: 0.82rem; margin-top: 0.4rem; min-height: 1.2em; }
+
+    .player-list { display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 0.75rem; }
+    .player-btn {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); padding: 0.65rem 1rem; text-align: left; cursor: pointer;
+      font-size: 0.95rem; transition: border-color 0.2s, background 0.2s;
+    }
+    .player-btn:hover { border-color: var(--green); background: #0d1625; }
+
+    .divider {
+      display: flex; align-items: center; gap: 0.6rem;
+      margin: 1rem 0; color: var(--muted); font-size: 0.78rem;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── App header ── */
+    .app-header {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 0.7rem 1rem; display: flex; align-items: center;
+      justify-content: space-between; gap: 1rem;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .app-logo { font-size: 0.95rem; font-weight: 800; color: var(--green); white-space: nowrap; }
+    .header-right { display: flex; align-items: center; gap: 0.6rem; }
+    .player-badge {
+      font-size: 0.82rem; color: var(--muted); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 100px;
+    }
+    .btn-pdf {
+      background: transparent; border: 1px solid var(--green); color: var(--green);
+      border-radius: 6px; padding: 0.38rem 0.75rem; font-size: 0.78rem;
+      font-weight: 700; cursor: pointer; white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-pdf:hover { background: var(--green); color: var(--bg); }
+
+    /* ── Tabs ── */
+    .tabs {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      display: flex; overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--muted); padding: 0.7rem 1.2rem; font-size: 0.88rem;
+      font-weight: 700; cursor: pointer; white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+
+    /* ── Tab content ── */
+    .tab-content { flex: 1; overflow-y: auto; }
+    .tab-pane { display: none; padding: 1rem; }
+    .tab-pane.active { display: block; }
+
+    /* ── Group selector ── */
+    .group-selector {
+      display: flex; gap: 0.35rem; overflow-x: auto;
+      scrollbar-width: none; padding-bottom: 0.5rem; margin-bottom: 1rem;
+    }
+    .group-selector::-webkit-scrollbar { display: none; }
+    .group-btn {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--muted); padding: 0.35rem 0.7rem; font-size: 0.82rem;
+      font-weight: 700; cursor: pointer; white-space: nowrap;
+      display: flex; align-items: center; gap: 0.3rem;
+      transition: border-color 0.15s, color 0.15s; flex-shrink: 0;
+    }
+    .group-btn.active { border-color: var(--green); color: var(--text); }
+    .group-btn .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); display: none; flex-shrink: 0;
+    }
+    .group-btn.complete .dot { display: block; }
+
+    /* ── Progress bar ── */
+    .progress-wrap {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.65rem 1rem; margin-bottom: 0.6rem;
+      display: flex; align-items: center; gap: 0.9rem;
+    }
+    .progress-label { font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+    .progress-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.3s; }
+
+    .save-indicator {
+      font-size: 0.75rem; color: var(--muted); text-align: right;
+      min-height: 1.1em; margin-bottom: 0.4rem;
+    }
+    .save-indicator.saving { color: var(--green); }
+
+    /* ── Match card (group stage) ── */
+    .match-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.9rem; margin-bottom: 0.5rem;
+    }
+    .round-label {
+      font-size: 0.7rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.06em; font-weight: 700; margin-bottom: 0.65rem;
+    }
+    .match-row { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.55rem; }
+    .match-row:last-child { margin-bottom: 0; }
+    .team-name { flex: 1; font-size: 0.82rem; font-weight: 500; line-height: 1.3; min-width: 0; }
+    .team-name.home { text-align: right; }
+    .team-name.away { text-align: left; }
+
+    /* ── Score inputs (shared by group stage and knockout) ── */
+    .score-input {
+      width: 40px; min-width: 40px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); text-align: center; padding: 0.38rem 0;
+      font-size: 0.95rem; font-weight: 700; outline: none;
+      transition: border-color 0.15s; -moz-appearance: textfield; appearance: textfield;
+    }
+    .score-input::-webkit-outer-spin-button,
+    .score-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .score-input:focus { border-color: var(--green); }
+    .score-input.filled { border-color: #00C85166; }
+
+    .score-sep { color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+
+    /* ── Standings ── */
+    .standings-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 1.25rem; overflow: hidden;
+    }
+    .card-header {
+      padding: 0.55rem 1rem; border-bottom: 1px solid var(--border);
+      font-size: 0.75rem; font-weight: 800; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.07em;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th {
+      padding: 0.45rem 0.4rem; text-align: center; color: var(--muted);
+      font-weight: 700; font-size: 0.72rem; text-transform: uppercase;
+    }
+    th:first-child { text-align: left; padding-left: 0.75rem; }
+    td { padding: 0.42rem 0.4rem; text-align: center; border-top: 1px solid #1E2D4540; }
+    td:first-child { text-align: left; padding-left: 0.75rem; font-weight: 500; }
+    tr.q1 td { background: #00C85118; }
+    tr.q2 td { background: #00C85109; }
+    tr.q3 td { background: #1565C018; }
+
+    .section-title {
+      font-size: 0.9rem; font-weight: 800; color: var(--text);
+      margin-bottom: 0.65rem; padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Knockout match cards ── */
+    .ko-grid { display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 0.5rem; }
+    .ko-match {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.65rem 0.9rem;
+      display: flex; align-items: center; gap: 0.6rem;
+    }
+    .ko-id {
+      font-size: 0.65rem; color: var(--muted); font-weight: 800;
+      min-width: 32px; text-transform: uppercase;
+    }
+    .ko-teams {
+      flex: 1; display: flex; align-items: center; gap: 0.4rem; min-width: 0;
+    }
+    .ko-team {
+      flex: 1; font-size: 0.82rem; font-weight: 500;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ko-team.home { text-align: right; }
+    .ko-team.ph { color: var(--muted); font-style: italic; font-size: 0.75rem; }
+    .ko-vs { color: var(--muted); font-size: 0.75rem; font-weight: 800; flex-shrink: 0; }
+
+    /* ── Compare ── */
+    .compare-wrap { overflow-x: auto; }
+    .compare-table th, .compare-table td { min-width: 72px; font-size: 0.78rem; padding: 0.38rem 0.45rem; }
+    .compare-table th:first-child, .compare-table td:first-child { min-width: 140px; text-align: left; }
+
+    /* ── Print ── */
+    .print-only { display: none; }
+
+    @media print {
+      body { background: white !important; color: black !important; font-family: Arial, sans-serif; margin: 0; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      #screen-auth, #screen-name { display: none !important; }
+      #screen-app { display: block !important; }
+      .app-header, .tabs, .tab-content { display: none !important; }
+      .print-only * { color: black !important; background: white !important; }
+
+      .print-header { font-size: 1rem; font-weight: 800; border-bottom: 2px solid black; padding-bottom: 0.3rem; margin-bottom: 0.6rem; }
+
+      .print-section { margin-bottom: 0.8rem; }
+      .print-section + .print-section { page-break-before: always; }
+      .print-section > h2 { font-size: 0.82rem; font-weight: 700; margin: 0 0 0.35rem; padding-bottom: 0.15rem; border-bottom: 1px solid #555; text-transform: uppercase; letter-spacing: 0.04em; }
+
+      /* Group stage: 3-column grid */
+      .print-groups-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem 1rem; }
+
+      .print-group { break-inside: avoid; margin-bottom: 0.25rem; }
+      .print-group-title { font-weight: 700; font-size: 0.72rem; margin-bottom: 0.1rem; padding-bottom: 0.08rem; border-bottom: 1px solid #bbb; }
+
+      .print-match { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; font-size: 0.66rem; line-height: 1.45; }
+      .pm-home { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pm-score { text-align: center; font-weight: 600; padding: 0 0.35rem; white-space: nowrap; min-width: 3.5rem; }
+      .pm-away { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      /* KO stage: 2-column grid for the bigger rounds */
+      .print-ko-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.3rem 1.2rem; }
+      .print-ko-grid .print-group { margin-bottom: 0.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ AUTH SCREEN -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-card">
+    <h1>⚽ Bolão Copa 2026</h1>
+    <p class="subtitle">Digite o token de acesso para entrar</p>
+    <div class="form-group">
+      <label>Token de acesso</label>
+      <input type="password" id="token-input" placeholder="••••••••" autocomplete="off" />
+    </div>
+    <p class="error-msg" id="token-error"></p>
+    <button class="btn-primary" id="token-btn">Entrar</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ NAME SCREEN -->
+<div id="screen-name" class="screen">
+  <div class="auth-card">
+    <h1>Quem é você?</h1>
+    <p class="subtitle">Selecione ou crie seu perfil de participante</p>
+    <div class="player-list" id="player-list"></div>
+    <div class="divider">ou novo participante</div>
+    <div class="form-group">
+      <label>Novo nome</label>
+      <input type="text" id="new-name-input" placeholder="Seu nome" maxlength="30" />
+    </div>
+    <p class="error-msg" id="name-error"></p>
+    <button class="btn-primary" id="new-name-btn">Entrar com este nome</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ APP SCREEN -->
+<div id="screen-app" class="screen">
+
+  <header class="app-header no-print">
+    <span class="app-logo">⚽ Bolão Copa 2026</span>
+    <div class="header-right">
+      <span class="player-badge" id="player-badge"></span>
+      <button class="btn-pdf" id="pdf-btn">Gerar PDF</button>
+    </div>
+  </header>
+
+  <nav class="tabs no-print">
+    <button class="tab-btn active"  data-tab="fase-grupos">Fase de Grupos</button>
+    <button class="tab-btn"         data-tab="classificacao">Classificação</button>
+    <button class="tab-btn"         data-tab="matamata">Mata-mata</button>
+    <button class="tab-btn"         data-tab="comparar">Comparar</button>
+  </nav>
+
+  <div class="tab-content no-print">
+
+    <!-- Fase de Grupos -->
+    <div class="tab-pane active" id="tab-fase-grupos">
+      <div class="progress-wrap">
+        <span class="progress-label" id="progress-label">0 / 72 preenchidos</span>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="save-indicator" id="save-indicator"></div>
+      <div class="group-selector" id="gs-fase-grupos"></div>
+      <div id="fase-grupos-body"></div>
+    </div>
+
+    <!-- Classificação -->
+    <div class="tab-pane" id="tab-classificacao">
+      <div id="class-body"></div>
+    </div>
+
+    <!-- Mata-mata -->
+    <div class="tab-pane" id="tab-matamata">
+      <div id="mata-body"></div>
+    </div>
+
+    <!-- Comparar -->
+    <div class="tab-pane" id="tab-comparar">
+      <div class="group-selector" id="gs-comparar"></div>
+      <div id="comp-body"></div>
+    </div>
+
+  </div>
+
+  <div class="print-only" id="print-content"></div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   DATA — GRUPOS E PARTIDAS
+═══════════════════════════════════════════════════════════════════ */
+
+const GROUPS = {
+  A: ['México', 'África do Sul', 'Coreia do Sul', 'República Tcheca'],
+  B: ['Canadá', 'Bósnia e Herzegovina', 'Catar', 'Suíça'],
+  C: ['Brasil', 'Marrocos', 'Haiti', 'Escócia'],
+  D: ['Estados Unidos', 'Paraguai', 'Austrália', 'Turquia'],
+  E: ['Alemanha', 'Curaçao', 'Costa do Marfim', 'Equador'],
+  F: ['Holanda', 'Japão', 'Suécia', 'Tunísia'],
+  G: ['Bélgica', 'Egito', 'Irã', 'Nova Zelândia'],
+  H: ['Espanha', 'Cabo Verde', 'Arábia Saudita', 'Uruguai'],
+  I: ['França', 'Senegal', 'Iraque', 'Noruega'],
+  J: ['Argentina', 'Argélia', 'Áustria', 'Jordânia'],
+  K: ['Portugal', 'RD Congo', 'Uzbequistão', 'Colômbia'],
+  L: ['Inglaterra', 'Croácia', 'Gana', 'Panamá'],
+};
+
+const GROUP_KEYS = Object.keys(GROUPS);
+
+const ROUND_PAIRS = [
+  [[0,1],[2,3]],
+  [[0,2],[1,3]],
+  [[0,3],[1,2]],
+];
+
+const MATCHES = (() => {
+  const list = [];
+  let id = 1;
+  for (let r = 0; r < 3; r++) {
+    for (const g of GROUP_KEYS) {
+      const t = GROUPS[g];
+      for (const [hi, ai] of ROUND_PAIRS[r]) {
+        list.push({ id, group: g, round: r + 1, home: t[hi], away: t[ai] });
+        id++;
+      }
+    }
+  }
+  return list;
+})();
+
+const matchesByGroup = {};
+for (const g of GROUP_KEYS) matchesByGroup[g] = MATCHES.filter(m => m.group === g);
+
+/* ─── Mata-mata — 32-avos ─── */
+
+const KNOCKOUT = [
+  { id: 'M73', homeSeed: '2A', awaySeed: '2B',  thirdKey: null },
+  { id: 'M74', homeSeed: '1E', awaySeed: null,   thirdKey: 'M74' },
+  { id: 'M75', homeSeed: '1F', awaySeed: '2C',   thirdKey: null },
+  { id: 'M76', homeSeed: '1C', awaySeed: '2F',   thirdKey: null },
+  { id: 'M77', homeSeed: '1I', awaySeed: null,   thirdKey: 'M77' },
+  { id: 'M78', homeSeed: '2E', awaySeed: '2I',   thirdKey: null },
+  { id: 'M79', homeSeed: '1A', awaySeed: null,   thirdKey: 'M79' },
+  { id: 'M80', homeSeed: '1L', awaySeed: null,   thirdKey: 'M80' },
+  { id: 'M81', homeSeed: '1D', awaySeed: null,   thirdKey: 'M81' },
+  { id: 'M82', homeSeed: '1G', awaySeed: null,   thirdKey: 'M82' },
+  { id: 'M83', homeSeed: '2K', awaySeed: '2L',   thirdKey: null },
+  { id: 'M84', homeSeed: '1H', awaySeed: '2J',   thirdKey: null },
+  { id: 'M85', homeSeed: '1B', awaySeed: null,   thirdKey: 'M85' },
+  { id: 'M86', homeSeed: '1J', awaySeed: '2H',   thirdKey: null },
+  { id: 'M87', homeSeed: '1K', awaySeed: null,   thirdKey: 'M87' },
+  { id: 'M88', homeSeed: '2D', awaySeed: '2G',   thirdKey: null },
+];
+
+const THIRD_CONSTRAINTS = {
+  M74: ['A','B','C','D','F'],
+  M77: ['C','D','F','G','H'],
+  M79: ['C','E','F','H','I'],
+  M80: ['E','H','I','J','K'],
+  M81: ['B','E','F','I','J'],
+  M82: ['A','E','H','I','J'],
+  M85: ['E','F','G','I','J'],
+  M87: ['D','E','I','J','L'],
+};
+const FIFA_THIRDS = {
+  ABCDEFGH: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'B',M82:'A',M85:'G',M87:'D'},
+  ABCDEFGI: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCDEFGJ: {M74:'D',M77:'F',M79:'C',M80:'J',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCDEFGK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCDEFGL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDEFHI: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'E',M87:'D'},
+  ABCDEFHJ: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'D'},
+  ABCDEFHK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'D'},
+  ABCDEFHL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'B',M82:'A',M85:'F',M87:'L'},
+  ABCDEFIJ: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCDEFIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'E',M87:'I'},
+  ABCDEFIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABCDEFJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCDEFJL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDEFKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABCDEGHI: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCDEGHJ: {M74:'C',M77:'D',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCDEGHK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCDEGHL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDEGIJ: {M74:'C',M77:'D',M79:'E',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCDEGIK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCDEGIL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDEGJK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABCDEGJL: {M74:'C',M77:'D',M79:'E',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDEGKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDEHIJ: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCDEHIK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'I'},
+  ABCDEHIL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABCDEHJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCDEHJL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDEHKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABCDEIJK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCDEIJL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDEIKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABCDEJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDFGHI: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'D'},
+  ABCDFGHJ: {M74:'C',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'D'},
+  ABCDFGHK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'D'},
+  ABCDFGHL: {M74:'D',M77:'F',M79:'C',M80:'H',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDFGIJ: {M74:'D',M77:'F',M79:'C',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCDFGIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCDFGIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDFGJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABCDFGJL: {M74:'D',M77:'F',M79:'C',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDFGKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDFHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'D'},
+  ABCDFHIK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'F',M87:'I'},
+  ABCDFHIL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'A',M85:'F',M87:'L'},
+  ABCDFHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'D'},
+  ABCDFHJL: {M74:'D',M77:'F',M79:'C',M80:'H',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDFHKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'F',M87:'L'},
+  ABCDFIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCDFIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDFIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABCDFJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDGHIJ: {M74:'C',M77:'D',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCDGHIK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCDGHIL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDGHJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABCDGHJL: {M74:'C',M77:'D',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDGHKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDGIJK: {M74:'D',M77:'G',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCDGIJL: {M74:'D',M77:'G',M79:'C',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDGIKL: {M74:'C',M77:'D',M79:'I',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCDGJKL: {M74:'D',M77:'G',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDHIJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCDHIJL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDHIKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABCDHJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCDIJKL: {M74:'C',M77:'D',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEFGHI: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCEFGHJ: {M74:'C',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCEFGHK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABCEFGHL: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCEFGIJ: {M74:'C',M77:'F',M79:'E',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCEFGIK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCEFGIL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCEFGJK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABCEFGJL: {M74:'C',M77:'F',M79:'E',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCEFGKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCEFHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCEFHIK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'I'},
+  ABCEFHIL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABCEFHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCEFHJL: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEFHKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABCEFIJK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCEFIJL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEFIKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABCEFJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEGHIJ: {M74:'C',M77:'G',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCEGHIK: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCEGHIL: {M74:'C',M77:'H',M79:'E',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCEGHJK: {M74:'C',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABCEGHJL: {M74:'C',M77:'G',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEGHKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCEGIJK: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCEGIJL: {M74:'C',M77:'G',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEGIKL: {M74:'A',M77:'C',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  ABCEGJKL: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEHIJK: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCEHIJL: {M74:'C',M77:'H',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEHIKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABCEHJKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCEIJKL: {M74:'A',M77:'C',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ABCFGHIJ: {M74:'C',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCFGHIK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABCFGHIL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCFGHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABCFGHJL: {M74:'C',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCFGHKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCFGIJK: {M74:'F',M77:'G',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCFGIJL: {M74:'F',M77:'G',M79:'C',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCFGIKL: {M74:'C',M77:'F',M79:'I',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCFGJKL: {M74:'F',M77:'G',M79:'C',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCFHIJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCFHIJL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCFHIKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABCFHJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCFIJKL: {M74:'C',M77:'F',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCGHIJK: {M74:'C',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABCGHIJL: {M74:'C',M77:'G',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCGHIKL: {M74:'C',M77:'H',M79:'I',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABCGHJKL: {M74:'C',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCGIJKL: {M74:'C',M77:'G',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABCHIJKL: {M74:'C',M77:'H',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEFGHI: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABDEFGHJ: {M74:'D',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABDEFGHK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'E'},
+  ABDEFGHL: {M74:'D',M77:'F',M79:'H',M80:'E',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDEFGIJ: {M74:'D',M77:'F',M79:'E',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABDEFGIK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABDEFGIL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDEFGJK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABDEFGJL: {M74:'D',M77:'F',M79:'E',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDEFGKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDEFHIJ: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABDEFHIK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'I'},
+  ABDEFHIL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABDEFHJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABDEFHJL: {M74:'D',M77:'F',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEFHKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'E',M87:'L'},
+  ABDEFIJK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABDEFIJL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEFIKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABDEFJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEGHIJ: {M74:'D',M77:'G',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABDEGHIK: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABDEGHIL: {M74:'D',M77:'H',M79:'E',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDEGHJK: {M74:'D',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABDEGHJL: {M74:'D',M77:'G',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEGHKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDEGIJK: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABDEGIJL: {M74:'D',M77:'G',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEGIKL: {M74:'A',M77:'D',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  ABDEGJKL: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEHIJK: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABDEHIJL: {M74:'D',M77:'H',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEHIKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABDEHJKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDEIJKL: {M74:'A',M77:'D',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ABDFGHIJ: {M74:'D',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABDFGHIK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABDFGHIL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDFGHJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'J'},
+  ABDFGHJL: {M74:'D',M77:'F',M79:'H',M80:'J',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDFGHKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDFGIJK: {M74:'D',M77:'G',M79:'F',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABDFGIJL: {M74:'D',M77:'G',M79:'F',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDFGIKL: {M74:'D',M77:'F',M79:'I',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDFGJKL: {M74:'D',M77:'G',M79:'F',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDFHIJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABDFHIJL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDFHIKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABDFHJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDFIJKL: {M74:'D',M77:'F',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDGHIJK: {M74:'D',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABDGHIJL: {M74:'D',M77:'G',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDGHIKL: {M74:'D',M77:'H',M79:'I',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABDGHJKL: {M74:'D',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDGIJKL: {M74:'D',M77:'G',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABDHIJKL: {M74:'D',M77:'H',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABEFGHIJ: {M74:'F',M77:'G',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABEFGHIK: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'I'},
+  ABEFGHIL: {M74:'F',M77:'H',M79:'E',M80:'I',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABEFGHJK: {M74:'F',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'E'},
+  ABEFGHJL: {M74:'F',M77:'G',M79:'H',M80:'E',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABEFGHKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'G',M87:'L'},
+  ABEFGIJK: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABEFGIJL: {M74:'F',M77:'G',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABEFGIKL: {M74:'A',M77:'F',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  ABEFGJKL: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABEFHIJK: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABEFHIJL: {M74:'F',M77:'H',M79:'E',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABEFHIKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'I',M87:'L'},
+  ABEFHJKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABEFIJKL: {M74:'A',M77:'F',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ABEGHIJK: {M74:'A',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  ABEGHIJL: {M74:'A',M77:'G',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  ABEGHIKL: {M74:'A',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  ABEGHJKL: {M74:'A',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  ABEGIJKL: {M74:'A',M77:'G',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ABEHIJKL: {M74:'A',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ABFGHIJK: {M74:'F',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'I'},
+  ABFGHIJL: {M74:'F',M77:'G',M79:'H',M80:'I',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABFGHIKL: {M74:'A',M77:'F',M79:'H',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  ABFGHJKL: {M74:'F',M77:'G',M79:'H',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABFGIJKL: {M74:'F',M77:'G',M79:'I',M80:'K',M81:'B',M82:'A',M85:'J',M87:'L'},
+  ABFHIJKL: {M74:'A',M77:'F',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ABGHIJKL: {M74:'A',M77:'G',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  ACDEFGHI: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'E',M82:'A',M85:'G',M87:'D'},
+  ACDEFGHJ: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'J',M82:'A',M85:'G',M87:'D'},
+  ACDEFGHK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'D'},
+  ACDEFGHL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'F',M82:'A',M85:'G',M87:'L'},
+  ACDEFGIJ: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ACDEFGIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'A',M85:'G',M87:'I'},
+  ACDEFGIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ACDEFGJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ACDEFGJL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDEFGKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ACDEFHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'E',M82:'A',M85:'J',M87:'D'},
+  ACDEFHIK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'F',M82:'A',M85:'E',M87:'I'},
+  ACDEFHIL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'F',M82:'A',M85:'E',M87:'L'},
+  ACDEFHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'D'},
+  ACDEFHJL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'F',M82:'A',M85:'J',M87:'L'},
+  ACDEFHKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'F',M82:'A',M85:'E',M87:'L'},
+  ACDEFIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'A',M85:'J',M87:'I'},
+  ACDEFIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ACDEFIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'A',M85:'E',M87:'L'},
+  ACDEFJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ACDEGHIJ: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ACDEGHIK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'I'},
+  ACDEGHIL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ACDEGHJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ACDEGHJL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDEGHKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ACDEGIJK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ACDEGIJL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDEGIKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ACDEGJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDEHIJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'I'},
+  ACDEHIJL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ACDEHIKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'I',M82:'A',M85:'E',M87:'L'},
+  ACDEHJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ACDEIJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACDFGHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'D'},
+  ACDFGHIK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'F',M82:'A',M85:'G',M87:'I'},
+  ACDFGHIL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'F',M82:'A',M85:'G',M87:'L'},
+  ACDFGHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'D'},
+  ACDFGHJL: {M74:'D',M77:'F',M79:'C',M80:'H',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDFGHKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'F',M82:'A',M85:'G',M87:'L'},
+  ACDFGIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ACDFGIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDFGIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ACDFGJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDFHIJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'F',M82:'A',M85:'J',M87:'I'},
+  ACDFHIJL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'F',M82:'A',M85:'J',M87:'L'},
+  ACDFHIKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'I',M82:'A',M85:'F',M87:'L'},
+  ACDFHJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'F',M82:'A',M85:'J',M87:'L'},
+  ACDFIJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACDGHIJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ACDGHIJL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDGHIKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ACDGHJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDGIJKL: {M74:'C',M77:'D',M79:'I',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACDHIJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACEFGHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ACEFGHIK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'I'},
+  ACEFGHIL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ACEFGHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ACEFGHJL: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACEFGHKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ACEFGIJK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ACEFGIJL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACEFGIKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ACEFGJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACEFHIJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'I'},
+  ACEFHIJL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ACEFHIKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'I',M82:'A',M85:'E',M87:'L'},
+  ACEFHJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ACEFIJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACEGHIJK: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ACEGHIJL: {M74:'C',M77:'H',M79:'E',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACEGHIKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ACEGHJKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACEGIJKL: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACEHIJKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACFGHIJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ACFGHIJL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACFGHIKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ACFGHJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACFGIJKL: {M74:'C',M77:'F',M79:'I',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ACFHIJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ACGHIJKL: {M74:'C',M77:'G',M79:'H',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ADEFGHIJ: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ADEFGHIK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'I'},
+  ADEFGHIL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ADEFGHJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'E'},
+  ADEFGHJL: {M74:'D',M77:'F',M79:'H',M80:'E',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADEFGHKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'G',M87:'L'},
+  ADEFGIJK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ADEFGIJL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADEFGIKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ADEFGJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADEFHIJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'I'},
+  ADEFHIJL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ADEFHIKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'I',M82:'A',M85:'E',M87:'L'},
+  ADEFHJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'E',M82:'A',M85:'J',M87:'L'},
+  ADEFIJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ADEGHIJK: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ADEGHIJL: {M74:'D',M77:'H',M79:'E',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADEGHIKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ADEGHJKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADEGIJKL: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ADEHIJKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ADFGHIJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  ADFGHIJL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADFGHIKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  ADFGHJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADFGIJKL: {M74:'D',M77:'F',M79:'I',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  ADFHIJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  ADGHIJKL: {M74:'D',M77:'G',M79:'H',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  AEFGHIJK: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'I'},
+  AEFGHIJL: {M74:'F',M77:'H',M79:'E',M80:'I',M81:'J',M82:'A',M85:'G',M87:'L'},
+  AEFGHIKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'I',M82:'A',M85:'G',M87:'L'},
+  AEFGHJKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'J',M82:'A',M85:'G',M87:'L'},
+  AEFGIJKL: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  AEFHIJKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  AEGHIJKL: {M74:'A',M77:'G',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  AFGHIJKL: {M74:'F',M77:'G',M79:'H',M80:'K',M81:'I',M82:'A',M85:'J',M87:'L'},
+  BCDEFGHI: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'H',M85:'G',M87:'E'},
+  BCDEFGHJ: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'B',M82:'J',M85:'G',M87:'D'},
+  BCDEFGHK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'G',M87:'E'},
+  BCDEFGHL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCDEFGIJ: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BCDEFGIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'E',M85:'G',M87:'I'},
+  BCDEFGIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'E',M85:'G',M87:'L'},
+  BCDEFGJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BCDEFGJL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDEFGKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'E',M85:'G',M87:'L'},
+  BCDEFHIJ: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'H',M85:'J',M87:'E'},
+  BCDEFHIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'E',M87:'I'},
+  BCDEFHIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'H',M85:'E',M87:'L'},
+  BCDEFHJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'J',M87:'E'},
+  BCDEFHJL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCDEFHKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'E',M87:'L'},
+  BCDEFIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'E',M85:'J',M87:'I'},
+  BCDEFIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'E',M85:'J',M87:'L'},
+  BCDEFIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'I',M85:'E',M87:'L'},
+  BCDEFJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'E',M85:'J',M87:'L'},
+  BCDEGHIJ: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BCDEGHIK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'H',M85:'G',M87:'I'},
+  BCDEGHIL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCDEGHJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BCDEGHJL: {M74:'C',M77:'D',M79:'H',M80:'E',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDEGHKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCDEGIJK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BCDEGIJL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDEGIKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BCDEGJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDEHIJK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BCDEHIJL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCDEHIKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'H',M85:'I',M87:'L'},
+  BCDEHJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCDEIJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCDFGHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'D'},
+  BCDFGHIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'G',M87:'I'},
+  BCDFGHIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCDFGHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'D'},
+  BCDFGHJL: {M74:'D',M77:'F',M79:'C',M80:'J',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCDFGHKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCDFGIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BCDFGIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDFGIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BCDFGJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDFHIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BCDFHIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCDFHIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'I',M87:'L'},
+  BCDFHJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCDFIJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCDGHIJK: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BCDGHIJL: {M74:'C',M77:'D',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDGHIKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BCDGHJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDGIJKL: {M74:'C',M77:'D',M79:'I',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCDHIJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCEFGHIJ: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BCEFGHIK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'G',M87:'I'},
+  BCEFGHIL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCEFGHJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BCEFGHJL: {M74:'C',M77:'F',M79:'H',M80:'E',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCEFGHKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BCEFGIJK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BCEFGIJL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCEFGIKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BCEFGJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCEFHIJK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BCEFHIJL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCEFHIKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'I',M87:'L'},
+  BCEFHJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCEFIJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCEGHIJK: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BCEGHIJL: {M74:'C',M77:'G',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCEGHIKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BCEGHJKL: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BCEGIJKL: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCEHIJKL: {M74:'C',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCFGHIJK: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BCFGHIJL: {M74:'C',M77:'F',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCFGHIKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BCFGHJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCFGIJKL: {M74:'C',M77:'F',M79:'I',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BCFHIJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BCGHIJKL: {M74:'C',M77:'G',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BDEFGHIJ: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BDEFGHIK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'G',M87:'I'},
+  BDEFGHIL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BDEFGHJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'E'},
+  BDEFGHJL: {M74:'D',M77:'F',M79:'H',M80:'E',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BDEFGHKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'G',M87:'L'},
+  BDEFGIJK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BDEFGIJL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BDEFGIKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BDEFGJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BDEFHIJK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BDEFHIJL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BDEFHIKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'I',M87:'L'},
+  BDEFHJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BDEFIJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BDEGHIJK: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BDEGHIJL: {M74:'D',M77:'G',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BDEGHIKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BDEGHJKL: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BDEGIJKL: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BDEHIJKL: {M74:'D',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BDFGHIJK: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'I'},
+  BDFGHIJL: {M74:'D',M77:'F',M79:'H',M80:'I',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BDFGHIKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BDFGHJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BDFGIJKL: {M74:'D',M77:'F',M79:'I',M80:'K',M81:'B',M82:'J',M85:'G',M87:'L'},
+  BDFHIJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BDGHIJKL: {M74:'D',M77:'G',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BEFGHIJK: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'I'},
+  BEFGHIJL: {M74:'F',M77:'G',M79:'E',M80:'I',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BEFGHIKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'G',M87:'L'},
+  BEFGHJKL: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'B',M82:'H',M85:'J',M87:'L'},
+  BEFGIJKL: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BEFHIJKL: {M74:'F',M77:'H',M79:'E',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  BEGHIJKL: {M74:'B',M77:'G',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  BFGHIJKL: {M74:'F',M77:'G',M79:'H',M80:'K',M81:'B',M82:'I',M85:'J',M87:'L'},
+  CDEFGHIJ: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'J',M82:'H',M85:'G',M87:'E'},
+  CDEFGHIK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'H',M85:'G',M87:'I'},
+  CDEFGHIL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'E',M82:'H',M85:'G',M87:'L'},
+  CDEFGHJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'J',M82:'H',M85:'G',M87:'E'},
+  CDEFGHJL: {M74:'D',M77:'F',M79:'C',M80:'E',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CDEFGHKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'H',M85:'G',M87:'L'},
+  CDEFGIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'J',M85:'G',M87:'I'},
+  CDEFGIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'E',M82:'J',M85:'G',M87:'L'},
+  CDEFGIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'I',M85:'G',M87:'L'},
+  CDEFGJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'J',M85:'G',M87:'L'},
+  CDEFHIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'H',M85:'J',M87:'I'},
+  CDEFHIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'E',M82:'H',M85:'J',M87:'L'},
+  CDEFHIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'H',M85:'E',M87:'L'},
+  CDEFHJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'H',M85:'J',M87:'L'},
+  CDEFIJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'E',M82:'I',M85:'J',M87:'L'},
+  CDEGHIJK: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'J',M82:'H',M85:'G',M87:'I'},
+  CDEGHIJL: {M74:'C',M77:'D',M79:'E',M80:'I',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CDEGHIKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'I',M82:'H',M85:'G',M87:'L'},
+  CDEGHJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CDEGIJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  CDEHIJKL: {M74:'C',M77:'D',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  CDFGHIJK: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'J',M82:'H',M85:'G',M87:'I'},
+  CDFGHIJL: {M74:'D',M77:'F',M79:'C',M80:'I',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CDFGHIKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'H',M85:'G',M87:'L'},
+  CDFGHJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CDFGIJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  CDFHIJKL: {M74:'D',M77:'F',M79:'C',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  CDGHIJKL: {M74:'C',M77:'D',M79:'H',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  CEFGHIJK: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'J',M82:'H',M85:'G',M87:'I'},
+  CEFGHIJL: {M74:'C',M77:'F',M79:'E',M80:'I',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CEFGHIKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'I',M82:'H',M85:'G',M87:'L'},
+  CEFGHJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'J',M82:'H',M85:'G',M87:'L'},
+  CEFGIJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  CEFHIJKL: {M74:'C',M77:'F',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  CEGHIJKL: {M74:'C',M77:'G',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  CFGHIJKL: {M74:'C',M77:'F',M79:'H',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  DEFGHIJK: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'J',M82:'H',M85:'G',M87:'I'},
+  DEFGHIJL: {M74:'D',M77:'F',M79:'E',M80:'I',M81:'J',M82:'H',M85:'G',M87:'L'},
+  DEFGHIKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'I',M82:'H',M85:'G',M87:'L'},
+  DEFGHJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'J',M82:'H',M85:'G',M87:'L'},
+  DEFGIJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  DEFHIJKL: {M74:'D',M77:'F',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  DEGHIJKL: {M74:'D',M77:'G',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+  DFGHIJKL: {M74:'D',M77:'F',M79:'H',M80:'K',M81:'I',M82:'J',M85:'G',M87:'L'},
+  EFGHIJKL: {M74:'F',M77:'G',M79:'E',M80:'K',M81:'I',M82:'H',M85:'J',M87:'L'},
+};
+
+/* ─── Bracket cascading (M89–M104) ─── */
+
+// 'w:MXX' = winner of MXX,  'l:MXX' = loser of MXX
+const BRACKET = {
+  M89:  { home: 'w:M74', away: 'w:M77' },
+  M90:  { home: 'w:M73', away: 'w:M75' },
+  M91:  { home: 'w:M76', away: 'w:M78' },
+  M92:  { home: 'w:M79', away: 'w:M80' },
+  M93:  { home: 'w:M83', away: 'w:M84' },
+  M94:  { home: 'w:M81', away: 'w:M82' },
+  M95:  { home: 'w:M86', away: 'w:M88' },
+  M96:  { home: 'w:M85', away: 'w:M87' },
+  M97:  { home: 'w:M89', away: 'w:M90' },
+  M98:  { home: 'w:M93', away: 'w:M94' },
+  M99:  { home: 'w:M91', away: 'w:M92' },
+  M100: { home: 'w:M95', away: 'w:M96' },
+  M101: { home: 'w:M97', away: 'w:M98' },
+  M102: { home: 'w:M99', away: 'w:M100' },
+  M103: { home: 'l:M101', away: 'l:M102' },
+  M104: { home: 'w:M101', away: 'w:M102' },
+};
+
+const BRACKET_ROUNDS = [
+  { label: '32-avos de Final',    ids: ['M73','M74','M75','M76','M77','M78','M79','M80','M81','M82','M83','M84','M85','M86','M87','M88'] },
+  { label: '16-avos de Final',    ids: ['M89','M90','M91','M92','M93','M94','M95','M96'] },
+  { label: 'Quartas de Final',    ids: ['M97','M98','M99','M100'] },
+  { label: 'Semifinais',          ids: ['M101','M102'] },
+  { label: 'Disputa do 3º Lugar', ids: ['M103'] },
+  { label: 'Final',               ids: ['M104'] },
+];
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════════════ */
+
+let db             = null;
+let currentPlayer  = null;
+let predictions    = {};  // { [matchId]: { h, a } }    — fase de grupos
+let koScores       = {};  // { 'M73': { h, a }, ... }   — mata-mata
+let allPredictions = {};  // { [player]: { [matchId]: { h, a } } }
+let currentTab     = 'fase-grupos';
+let groupFaseGrupos = 'A';
+let groupComparar   = 'A';
+let saveTimer      = null;
+let indicatorTimer = null;
+let koSaveTimer    = null;
+let koIndicator    = null;
+
+/* ═══════════════════════════════════════════════════════════════════
+   FIREBASE
+═══════════════════════════════════════════════════════════════════ */
+
+function initFirebase() {
+  try {
+    if (!window.FIREBASE_CONFIG) throw new Error('FIREBASE_CONFIG not defined');
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    db = firebase.database();
+    return true;
+  } catch (e) {
+    console.error('Firebase init error:', e);
+    return false;
+  }
+}
+
+const ref = path => db.ref(path);
+async function fbGet(path)        { return (await ref(path).once('value')).val(); }
+async function fbSet(path, value) { await ref(path).set(value); }
+function fbOnValue(path, cb)      { ref(path).on('value', snap => cb(snap.val())); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CLASSIFICAÇÃO
+═══════════════════════════════════════════════════════════════════ */
+
+function hasPred(p) {
+  return p != null && p.h !== '' && p.h != null && p.a !== '' && p.a != null
+    && !isNaN(parseInt(p.h)) && !isNaN(parseInt(p.a));
+}
+
+function calcGroupStandings(gKey, preds) {
+  const teams = GROUPS[gKey].map(name => ({ name, J:0, V:0, E:0, D:0, GF:0, GA:0, SG:0, PTS:0 }));
+  for (const match of matchesByGroup[gKey]) {
+    const pred = preds[match.id];
+    if (!hasPred(pred)) continue;
+    const h = parseInt(pred.h), a = parseInt(pred.a);
+    const hT = teams.find(t => t.name === match.home);
+    const aT = teams.find(t => t.name === match.away);
+    hT.J++; aT.J++;
+    hT.GF += h; hT.GA += a;
+    aT.GF += a; aT.GA += h;
+    if      (h > a) { hT.V++; hT.PTS += 3; aT.D++; }
+    else if (h < a) { aT.V++; aT.PTS += 3; hT.D++; }
+    else            { hT.E++; aT.E++; hT.PTS++; aT.PTS++; }
+  }
+  teams.forEach(t => t.SG = t.GF - t.GA);
+  teams.sort((a, b) => b.PTS - a.PTS || b.SG - a.SG || b.GF - a.GF);
+  return teams;
+}
+
+function calcAllStandings(preds) {
+  const r = {};
+  for (const g of GROUP_KEYS) r[g] = calcGroupStandings(g, preds);
+  return r;
+}
+
+function rankThirds(allSt) {
+  return GROUP_KEYS
+    .map(g => ({ group: g, ...allSt[g][2] }))
+    .sort((a, b) => b.PTS - a.PTS || b.SG - a.SG || b.GF - a.GF);
+}
+
+function solveThirds(allSt) {
+  const key = rankThirds(allSt).slice(0, 8).map(t => t.group).sort().join('');
+  return FIFA_THIRDS[key] || {};
+}
+
+function resolveDirectSeed(seed, allSt) {
+  const m = seed.match(/^([12])([A-L])$/);
+  if (!m) return null;
+  const pos = parseInt(m[1]) - 1, grp = m[2];
+  const st = allSt[grp];
+  if (!st || !st[pos] || st[pos].J === 0) return null;
+  return st[pos].name;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   KNOCKOUT TEAM RESOLUTION
+═══════════════════════════════════════════════════════════════════ */
+
+// Build a flat map of matchId → { home, away } for ALL knockout matches.
+// M73–M88 come from group stage; M89–M104 cascade from koScores.
+function buildAllKoTeams(allSt, thAssign, thirds) {
+  const teams = {};
+
+  // M73–M88
+  for (const ko of KNOCKOUT) {
+    const home = resolveDirectSeed(ko.homeSeed, allSt);
+    let away;
+    if (ko.awaySeed) {
+      away = resolveDirectSeed(ko.awaySeed, allSt);
+    } else {
+      const ag = thAssign[ko.thirdKey];
+      if (ag) {
+        const t3 = thirds.find(t => t.group === ag);
+        away = (t3 && t3.J > 0) ? t3.name : null;
+      } else {
+        away = null;
+      }
+    }
+    teams[ko.id] = { home, away };
+  }
+
+  // M89–M104 (in dependency order as defined in BRACKET_ROUNDS)
+  for (const round of BRACKET_ROUNDS.slice(1)) {
+    for (const mid of round.ids) {
+      const feed = BRACKET[mid];
+      teams[mid] = {
+        home: resolveRef(feed.home, teams),
+        away: resolveRef(feed.away, teams),
+      };
+    }
+  }
+
+  return teams;
+}
+
+function resolveRef(refStr, teams) {
+  const col = refStr.indexOf(':');
+  const type  = refStr.slice(0, col);
+  const srcId = refStr.slice(col + 1);
+  const t = teams[srcId];
+  if (!t || (!t.home && !t.away)) return null;
+  const sc = koScores[srcId];
+  if (!hasPred(sc)) return null;
+  const h = parseInt(sc.h), a = parseInt(sc.a);
+  if (h === a) return null; // draw → no winner in knockout
+  const winner = h > a ? t.home : t.away;
+  const loser  = h > a ? t.away : t.home;
+  return type === 'w' ? winner : loser;
+}
+
+// Human-readable placeholder when a team is not yet resolved
+function koPlaceholderText(mid, side, thAssign) {
+  const ko = KNOCKOUT.find(k => k.id === mid);
+  if (ko) {
+    if (side === 'home') return ko.homeSeed;
+    if (ko.awaySeed)     return ko.awaySeed;
+    const ag = thAssign[ko.thirdKey];
+    if (ag) return `3º Gr.${ag}`;
+    return `3º(${THIRD_CONSTRAINTS[ko.thirdKey].join('')})`;
+  }
+  const feed = BRACKET[mid];
+  if (!feed) return '?';
+  const ref = side === 'home' ? feed.home : feed.away;
+  const col = ref.indexOf(':');
+  const type = ref.slice(0, col), srcId = ref.slice(col + 1);
+  return type === 'w' ? `Venc. ${srcId}` : `Perd. ${srcId}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI HELPERS
+═══════════════════════════════════════════════════════════════════ */
+
+function isGroupComplete(gKey) {
+  return matchesByGroup[gKey].every(m => hasPred(predictions[m.id]));
+}
+
+function countFilled() {
+  return MATCHES.filter(m => hasPred(predictions[m.id])).length;
+}
+
+function updateProgress() {
+  const n = countFilled();
+  document.getElementById('progress-label').textContent = `${n} / 72 preenchidos`;
+  document.getElementById('progress-fill').style.width = `${(n / 72) * 100}%`;
+}
+
+function renderGroupSelector(containerId, activeGroup, onClick) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  for (const g of GROUP_KEYS) {
+    const btn = document.createElement('button');
+    btn.className = 'group-btn' +
+      (g === activeGroup ? ' active' : '') +
+      (isGroupComplete(g) ? ' complete' : '');
+    btn.innerHTML = `Grupo ${g}<span class="dot"></span>`;
+    btn.addEventListener('click', () => onClick(g));
+    el.appendChild(btn);
+  }
+}
+
+function sgStr(n) { return n > 0 ? `+${n}` : `${n}`; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — FASE DE GRUPOS
+═══════════════════════════════════════════════════════════════════ */
+
+function renderFaseDeGrupos() {
+  renderGroupSelector('gs-fase-grupos', groupFaseGrupos, g => {
+    groupFaseGrupos = g;
+    renderFaseDeGrupos();
+  });
+  updateProgress();
+
+  const body = document.getElementById('fase-grupos-body');
+  body.innerHTML = '';
+
+  for (let r = 1; r <= 3; r++) {
+    const roundMatches = matchesByGroup[groupFaseGrupos].filter(m => m.round === r);
+    const card = document.createElement('div');
+    card.className = 'match-card';
+
+    let html = `<div class="round-label">Rodada ${r}</div>`;
+    for (const match of roundMatches) {
+      const pred = predictions[match.id] || {};
+      const hv = (pred.h !== undefined && pred.h !== null && pred.h !== '') ? pred.h : '';
+      const av = (pred.a !== undefined && pred.a !== null && pred.a !== '') ? pred.a : '';
+      html += `
+        <div class="match-row">
+          <span class="team-name home">${match.home}</span>
+          <input class="score-input${hv !== '' ? ' filled' : ''}" type="number"
+                 min="0" max="20" inputmode="numeric"
+                 value="${hv}" data-mid="${match.id}" data-side="h">
+          <span class="score-sep">×</span>
+          <input class="score-input${av !== '' ? ' filled' : ''}" type="number"
+                 min="0" max="20" inputmode="numeric"
+                 value="${av}" data-mid="${match.id}" data-side="a">
+          <span class="team-name away">${match.away}</span>
+        </div>`;
+    }
+    card.innerHTML = html;
+    card.querySelectorAll('.score-input').forEach(inp =>
+      inp.addEventListener('input', onGroupScoreInput)
+    );
+    body.appendChild(card);
+  }
+}
+
+function onGroupScoreInput(e) {
+  const mid  = parseInt(e.target.dataset.mid);
+  const side = e.target.dataset.side;
+  const raw  = e.target.value;
+
+  if (!predictions[mid]) predictions[mid] = { h: '', a: '' };
+
+  if (raw === '') {
+    predictions[mid][side] = '';
+    e.target.classList.remove('filled');
+  } else {
+    const v = Math.min(20, Math.max(0, parseInt(raw) || 0));
+    e.target.value = v;
+    predictions[mid][side] = v;
+    e.target.classList.add('filled');
+  }
+
+  updateProgress();
+  renderGroupSelector('gs-fase-grupos', groupFaseGrupos, g => {
+    groupFaseGrupos = g;
+    renderFaseDeGrupos();
+  });
+  scheduleSave();
+}
+
+function scheduleSave() {
+  const ind = document.getElementById('save-indicator');
+  ind.textContent = 'Salvando…';
+  ind.className = 'save-indicator saving';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await fbSet(`/bolao/predictions/${currentPlayer}`, predictions);
+      ind.textContent = 'Salvo ✓';
+      ind.className = 'save-indicator';
+      clearTimeout(indicatorTimer);
+      indicatorTimer = setTimeout(() => { ind.textContent = ''; }, 2200);
+    } catch (err) {
+      ind.textContent = 'Erro ao salvar';
+      ind.className = 'save-indicator';
+    }
+  }, 800);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — CLASSIFICAÇÃO
+═══════════════════════════════════════════════════════════════════ */
+
+function renderClassificacao() {
+  const allSt  = calcAllStandings(predictions);
+  const thirds = rankThirds(allSt);
+  const body   = document.getElementById('class-body');
+  let html = '';
+
+  for (const g of GROUP_KEYS) {
+    const st = allSt[g];
+    html += `
+      <div class="standings-card">
+        <div class="card-header">Grupo ${g}</div>
+        <table>
+          <thead><tr>
+            <th>Time</th>
+            <th title="Jogos">J</th><th title="Vitórias">V</th><th title="Empates">E</th>
+            <th title="Derrotas">D</th><th title="Gols pró">GF</th>
+            <th title="Gols contra">GA</th><th title="Saldo">SG</th><th>PTS</th>
+          </tr></thead><tbody>`;
+    st.forEach((t, i) => {
+      const cls = i === 0 ? 'q1' : i === 1 ? 'q2' : '';
+      html += `<tr class="${cls}">
+        <td>${i + 1}. ${t.name}</td>
+        <td>${t.J}</td><td>${t.V}</td><td>${t.E}</td><td>${t.D}</td>
+        <td>${t.GF}</td><td>${t.GA}</td><td>${sgStr(t.SG)}</td>
+        <td><strong>${t.PTS}</strong></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  html += `<div class="section-title" style="margin-top:1.5rem">Melhores Terceiros Colocados</div>
+    <div class="standings-card"><table>
+      <thead><tr>
+        <th style="text-align:left;padding-left:.75rem">#</th>
+        <th style="text-align:left">Time</th>
+        <th>Grupo</th><th>PTS</th><th>SG</th><th>GF</th>
+      </tr></thead><tbody>`;
+  thirds.forEach((t, i) => {
+    const cls = i < 8 ? 'q3' : '';
+    html += `<tr class="${cls}">
+      <td style="padding-left:.75rem">${i + 1}</td>
+      <td style="text-align:left">${t.name}${i < 8 ? ' <span style="color:var(--green);font-size:.7rem">✓</span>' : ''}</td>
+      <td>${t.group}</td>
+      <td><strong>${t.PTS}</strong></td>
+      <td>${sgStr(t.SG)}</td>
+      <td>${t.GF}</td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>`;
+  body.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — MATA-MATA (all rounds with inputs)
+═══════════════════════════════════════════════════════════════════ */
+
+function renderMataMata() {
+  const allSt    = calcAllStandings(predictions);
+  const thAssign = solveThirds(allSt);
+  const thirds   = rankThirds(allSt);
+  const koTeams  = buildAllKoTeams(allSt, thAssign, thirds);
+
+  const body = document.getElementById('mata-body');
+  let html = '<div class="save-indicator" id="ko-save-indicator"></div>';
+
+  for (let ri = 0; ri < BRACKET_ROUNDS.length; ri++) {
+    const round = BRACKET_ROUNDS[ri];
+    html += `<div class="section-title"${ri > 0 ? ' style="margin-top:1.25rem"' : ''}>${round.label}</div>`;
+    html += '<div class="ko-grid">';
+
+    for (const mid of round.ids) {
+      const t     = koTeams[mid] || {};
+      const score = koScores[mid] || {};
+      const hv    = (score.h !== undefined && score.h !== null && score.h !== '') ? score.h : '';
+      const av    = (score.a !== undefined && score.a !== null && score.a !== '') ? score.a : '';
+
+      const homeName = t.home || null;
+      const awayName = t.away || null;
+      const homeText = homeName || koPlaceholderText(mid, 'home', thAssign);
+      const awayText = awayName || koPlaceholderText(mid, 'away', thAssign);
+
+      html += `
+        <div class="ko-match">
+          <span class="ko-id">${mid}</span>
+          <div class="ko-teams">
+            <span class="ko-team home${!homeName ? ' ph' : ''}"
+                  data-ko-team="${mid}" data-ko-side="home">${homeText}</span>
+            <input class="score-input${hv !== '' ? ' filled' : ''}" type="number"
+                   min="0" max="20" inputmode="numeric"
+                   value="${hv}" data-mid="${mid}" data-side="h" data-ko="1">
+            <span class="ko-vs">×</span>
+            <input class="score-input${av !== '' ? ' filled' : ''}" type="number"
+                   min="0" max="20" inputmode="numeric"
+                   value="${av}" data-mid="${mid}" data-side="a" data-ko="1">
+            <span class="ko-team${!awayName ? ' ph' : ''}"
+                  data-ko-team="${mid}" data-ko-side="away">${awayText}</span>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
+  body.querySelectorAll('.score-input[data-ko]').forEach(inp =>
+    inp.addEventListener('input', onKoScoreInput)
+  );
+}
+
+function onKoScoreInput(e) {
+  const mid  = e.target.dataset.mid;
+  const side = e.target.dataset.side;
+  const raw  = e.target.value;
+
+  if (!koScores[mid]) koScores[mid] = { h: '', a: '' };
+
+  if (raw === '') {
+    koScores[mid][side] = '';
+    e.target.classList.remove('filled');
+  } else {
+    const v = Math.min(20, Math.max(0, parseInt(raw) || 0));
+    e.target.value = v;
+    koScores[mid][side] = v;
+    e.target.classList.add('filled');
+  }
+
+  updateKoTeamSpans();
+  scheduleKoSave();
+}
+
+// Update only the team-name spans in the bracket without rebuilding the inputs
+function updateKoTeamSpans() {
+  const allSt    = calcAllStandings(predictions);
+  const thAssign = solveThirds(allSt);
+  const thirds   = rankThirds(allSt);
+  const koTeams  = buildAllKoTeams(allSt, thAssign, thirds);
+
+  document.querySelectorAll('[data-ko-team]').forEach(span => {
+    const mid  = span.dataset.koTeam;
+    const side = span.dataset.koSide;
+    const team = koTeams[mid] && koTeams[mid][side];
+    if (team) {
+      span.textContent = team;
+      span.classList.remove('ph');
+    } else {
+      span.textContent = koPlaceholderText(mid, side, thAssign);
+      span.classList.add('ph');
+    }
+  });
+}
+
+function scheduleKoSave() {
+  const ind = document.getElementById('ko-save-indicator');
+  if (ind) { ind.textContent = 'Salvando…'; ind.className = 'save-indicator saving'; }
+  clearTimeout(koSaveTimer);
+  koSaveTimer = setTimeout(async () => {
+    try {
+      await fbSet(`/bolao/knockout/${currentPlayer}`, koScores);
+      if (ind) {
+        ind.textContent = 'Salvo ✓';
+        ind.className = 'save-indicator';
+        clearTimeout(koIndicator);
+        koIndicator = setTimeout(() => { if (ind) ind.textContent = ''; }, 2200);
+      }
+    } catch (err) {
+      if (ind) { ind.textContent = 'Erro ao salvar'; ind.className = 'save-indicator'; }
+    }
+  }, 800);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER — COMPARAR
+═══════════════════════════════════════════════════════════════════ */
+
+function renderComparar() {
+  renderGroupSelector('gs-comparar', groupComparar, g => {
+    groupComparar = g;
+    renderComparar();
+  });
+
+  const body    = document.getElementById('comp-body');
+  const players = Object.keys(allPredictions);
+
+  if (!players.length) {
+    body.innerHTML = '<p style="color:var(--muted);padding:.5rem">Nenhum palpite registrado ainda.</p>';
+    return;
+  }
+
+  const matches = matchesByGroup[groupComparar];
+  let html = '<div class="compare-wrap"><table class="compare-table"><thead><tr><th>Jogo</th>';
+  for (const p of players) html += `<th>${p}</th>`;
+  html += '</tr></thead><tbody>';
+
+  for (const match of matches) {
+    html += `<tr><td>${match.home} × ${match.away}<br><small style="color:var(--muted)">R${match.round}</small></td>`;
+    for (const p of players) {
+      const pred = (allPredictions[p] || {})[match.id];
+      html += hasPred(pred) ? `<td>${pred.h}×${pred.a}</td>` : `<td style="color:var(--muted)">—</td>`;
+    }
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PDF
+═══════════════════════════════════════════════════════════════════ */
+
+function generatePDF() {
+  const allSt    = calcAllStandings(predictions);
+  const thAssign = solveThirds(allSt);
+  const thirds   = rankThirds(allSt);
+  const koTeams  = buildAllKoTeams(allSt, thAssign, thirds);
+  const now      = new Date();
+  const dateStr  = now.toLocaleDateString('pt-BR') + ' ' +
+                   now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  const matchRow = (home, score, away) =>
+    `<div class="print-match">
+       <span class="pm-home">${home}</span>
+       <span class="pm-score">${score}</span>
+       <span class="pm-away">${away}</span>
+     </div>`;
+
+  let html = `<div class="print-header">Bolão Copa 2026 — ${currentPlayer} — ${dateStr}</div>`;
+
+  // Fase de grupos — 3 colunas
+  html += `<div class="print-section"><h2>Fase de Grupos</h2><div class="print-groups-grid">`;
+  for (const g of GROUP_KEYS) {
+    html += `<div class="print-group"><div class="print-group-title">Grupo ${g}</div>`;
+    for (const m of matchesByGroup[g]) {
+      const p = predictions[m.id];
+      html += matchRow(m.home, hasPred(p) ? `${p.h} × ${p.a}` : '– × –', m.away);
+    }
+    html += `</div>`;
+  }
+  html += `</div></div>`;
+
+  // Mata-mata — 32-avos e 16-avos em 2 colunas, demais fases em coluna única
+  html += `<div class="print-section"><h2>Mata-mata</h2>`;
+  const koWide      = ['32-avos de Final', '16-avos de Final'];
+  const laterRounds = BRACKET_ROUNDS.filter(r => !koWide.includes(r.label));
+
+  for (const round of BRACKET_ROUNDS.filter(r => koWide.includes(r.label))) {
+    html += `<div class="print-group-title" style="grid-column:1/-1;margin-top:0.3rem">${round.label}</div>`;
+    html += `<div class="print-ko-grid">`;
+    for (const mid of round.ids) {
+      const t    = koTeams[mid] || {};
+      const sc   = koScores[mid];
+      const home = t.home || koPlaceholderText(mid, 'home', thAssign);
+      const away = t.away || koPlaceholderText(mid, 'away', thAssign);
+      html += `<div class="print-group">` +
+              matchRow(home, hasPred(sc) ? `${sc.h} × ${sc.a}` : '– × –', away) +
+              `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  for (const round of laterRounds) {
+    html += `<div class="print-group" style="margin-top:0.4rem">
+               <div class="print-group-title">${round.label}</div>`;
+    for (const mid of round.ids) {
+      const t    = koTeams[mid] || {};
+      const sc   = koScores[mid];
+      const home = t.home || koPlaceholderText(mid, 'home', thAssign);
+      const away = t.away || koPlaceholderText(mid, 'away', thAssign);
+      html += matchRow(home, hasPred(sc) ? `${sc.h} × ${sc.a}` : '– × –', away);
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  document.getElementById('print-content').innerHTML = html;
+  window.print();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════════════════════════ */
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.tab === tab)
+  );
+  document.querySelectorAll('.tab-pane').forEach(pane =>
+    pane.classList.toggle('active', pane.id === `tab-${tab}`)
+  );
+  if (tab === 'classificacao') renderClassificacao();
+  if (tab === 'matamata')      renderMataMata();
+  if (tab === 'comparar')      renderComparar();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AUTH FLOW
+═══════════════════════════════════════════════════════════════════ */
+
+async function handleTokenSubmit() {
+  const inp = document.getElementById('token-input');
+  const err = document.getElementById('token-error');
+  const btn = document.getElementById('token-btn');
+  const tok = inp.value.trim();
+  if (!tok) { err.textContent = 'Digite o token de acesso.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Verificando…'; err.textContent = '';
+  try {
+    const stored = await fbGet('/bolao/token');
+    if (stored === null) {
+      await fbSet('/bolao/token', tok);
+      await showNameScreen();
+    } else if (stored === tok) {
+      await showNameScreen();
+    } else {
+      err.textContent = 'Token inválido. Tente novamente.';
+    }
+  } catch (e) {
+    err.textContent = 'Erro de conexão. Verifique o Firebase.';
+    console.error(e);
+  }
+  btn.disabled = false; btn.textContent = 'Entrar';
+}
+
+async function showNameScreen() {
+  const players = (await fbGet('/bolao/players')) || [];
+  const list = document.getElementById('player-list');
+  list.innerHTML = '';
+  if (!players.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:.85rem">Seja o primeiro participante!</p>';
+  } else {
+    players.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'player-btn';
+      btn.textContent = name;
+      btn.addEventListener('click', () => enterAsPlayer(name));
+      list.appendChild(btn);
+    });
+  }
+  document.getElementById('screen-auth').classList.remove('active');
+  document.getElementById('screen-name').classList.add('active');
+}
+
+async function handleNewName() {
+  const inp  = document.getElementById('new-name-input');
+  const err  = document.getElementById('name-error');
+  const btn  = document.getElementById('new-name-btn');
+  const name = inp.value.trim();
+  if (!name || name.length < 2) { err.textContent = 'Nome inválido (mínimo 2 caracteres).'; return; }
+
+  btn.disabled = true; err.textContent = '';
+  try {
+    const players = (await fbGet('/bolao/players')) || [];
+    if (!players.includes(name)) { players.push(name); await fbSet('/bolao/players', players); }
+    await enterAsPlayer(name);
+  } catch (e) {
+    err.textContent = 'Erro ao registrar. Tente novamente.';
+    console.error(e);
+    btn.disabled = false;
+  }
+}
+
+async function enterAsPlayer(name) {
+  currentPlayer = name;
+  const [predData, koData] = await Promise.all([
+    fbGet(`/bolao/predictions/${name}`),
+    fbGet(`/bolao/knockout/${name}`),
+  ]);
+  predictions = predData || {};
+  koScores    = koData   || {};
+
+  document.getElementById('player-badge').textContent = name;
+  document.getElementById('screen-name').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+
+  renderFaseDeGrupos();
+  subscribeAll();
+}
+
+function subscribeAll() {
+  fbOnValue('/bolao/predictions', data => {
+    allPredictions = data || {};
+    if (currentTab === 'comparar') renderComparar();
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════════ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!initFirebase()) {
+    document.getElementById('screen-auth').innerHTML = `
+      <div class="auth-card">
+        <h1>Erro de Configuração</h1>
+        <p class="subtitle">O arquivo <code>firebase-config.js</code> não foi encontrado ou está incorreto.</p>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:1rem">
+          Copie <code>firebase-config.example.js</code> para <code>firebase-config.js</code>
+          e preencha com as suas credenciais do Firebase Realtime Database.
+        </p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('token-btn').addEventListener('click', handleTokenSubmit);
+  document.getElementById('token-input').addEventListener('keydown', e => e.key === 'Enter' && handleTokenSubmit());
+  document.getElementById('new-name-btn').addEventListener('click', handleNewName);
+  document.getElementById('new-name-input').addEventListener('keydown', e => e.key === 'Enter' && handleNewName());
+  document.querySelectorAll('.tab-btn').forEach(btn =>
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab))
+  );
+  document.getElementById('pdf-btn').addEventListener('click', generatePDF);
+});
+</script>
+</body>
+</html>
