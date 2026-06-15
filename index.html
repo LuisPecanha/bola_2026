@@ -282,6 +282,29 @@
       .ko-team { font-size: 0.75rem; }
     }
 
+    /* ── Auth wrapper (stacks card + leaderboard) ── */
+    .auth-wrap { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 1rem; padding: 1rem 0; }
+
+    /* ── Public leaderboard (pre-login) ── */
+    .public-lb-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+    }
+    .public-lb-title {
+      font-size: 0.72rem; font-weight: 800; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.65rem;
+    }
+    .public-lb-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    .public-lb-table tr { border-top: 1px solid #1E2D4540; }
+    .public-lb-table tr:first-child { border-top: none; }
+    .public-lb-table td { padding: 0.38rem 0.3rem; vertical-align: middle; }
+    .public-lb-table .lb-pos { color: var(--muted); font-weight: 700; width: 2rem; text-align: center; font-size: 0.78rem; }
+    .public-lb-table .lb-name { font-weight: 600; }
+    .public-lb-table .lb-pts { text-align: right; font-weight: 800; color: var(--green); white-space: nowrap; font-size: 0.82rem; }
+    .public-lb-table .lb-medal { font-size: 0.85rem; width: 1.4rem; text-align: center; }
+
     /* ── Print ── */
     .print-only { display: none; }
 
@@ -320,16 +343,24 @@
 <body>
 
 <!-- ══════════════════════════════════════════════ AUTH SCREEN -->
-<div id="screen-auth" class="screen active">
-  <div class="auth-card">
-    <h1>⚽ Bolão Copa 2026</h1>
-    <p class="subtitle">Digite o token de acesso para entrar</p>
-    <div class="form-group">
-      <label>Token de acesso</label>
-      <input type="password" id="token-input" placeholder="••••••••" autocomplete="off" />
+<div id="screen-auth" class="screen active" style="align-items:flex-start;padding-top:2rem">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h1>⚽ Bolão Copa 2026</h1>
+      <p class="subtitle">Digite o token de acesso para entrar</p>
+      <div class="form-group">
+        <label>Token de acesso</label>
+        <input type="password" id="token-input" placeholder="••••••••" autocomplete="off" />
+      </div>
+      <p class="error-msg" id="token-error"></p>
+      <button class="btn-primary" id="token-btn">Entrar</button>
     </div>
-    <p class="error-msg" id="token-error"></p>
-    <button class="btn-primary" id="token-btn">Entrar</button>
+    <div id="public-leaderboard" class="public-lb-card" style="display:none">
+      <div class="public-lb-title">Classificação ao Vivo</div>
+      <table class="public-lb-table">
+        <tbody id="public-lb-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1032,6 +1063,7 @@ let allPredictions = {};  // { [player]: { [matchId]: { h, a } } }
 let allKoPredictions = {}; // { [player]: { [matchId]: { h, a } } }
 let groupResults   = {};  // { [matchId]: { h, a } }    — resultados reais
 let koResults      = {};  // { [matchId]: { h, a, penalties } } — resultados reais KO
+let publicLbPlayers = []; // participantes para leaderboard público
 let currentTab     = 'fase-grupos';
 let groupFaseGrupos = 'A';
 let groupComparar   = 'A';
@@ -1599,6 +1631,40 @@ function calcPlayerScore(playerGroupPreds, playerKoPreds) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   RENDER — PUBLIC LEADERBOARD (pre-login, auth screen)
+═══════════════════════════════════════════════════════════════════ */
+
+function renderPublicLeaderboard() {
+  const card = document.getElementById('public-leaderboard');
+  const body = document.getElementById('public-lb-body');
+  if (!card || !body) return;
+
+  if (!publicLbPlayers.length) { card.style.display = 'none'; return; }
+
+  const scores = publicLbPlayers.map(p => ({
+    name: p,
+    total: calcPlayerScore(allPredictions[p] || {}, allKoPredictions[p] || {}).total,
+  })).sort((a, b) => b.total - a.total);
+
+  const medals = ['🥇', '🥈', '🥉'];
+  let pos = 1;
+  let html = '';
+  scores.forEach((s, i) => {
+    if (i > 0 && s.total < scores[i - 1].total) pos = i + 1;
+    const medal = pos <= 3 ? `<td class="lb-medal">${medals[pos - 1]}</td>` : `<td class="lb-medal"></td>`;
+    html += `<tr>
+      <td class="lb-pos">${pos}</td>
+      ${medal}
+      <td class="lb-name">${s.name}</td>
+      <td class="lb-pts">${s.total} pts</td>
+    </tr>`;
+  });
+
+  body.innerHTML = html;
+  card.style.display = '';
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    RENDER — RANKING
 ═══════════════════════════════════════════════════════════════════ */
 
@@ -2065,26 +2131,33 @@ async function enterAsPlayer(name) {
   document.getElementById('screen-app').classList.add('active');
 
   renderFaseDeGrupos();
-  subscribeAll();
 }
 
 function subscribeAll() {
+  fbOnValue('/bolao/players', data => {
+    publicLbPlayers = data || [];
+    renderPublicLeaderboard();
+  });
   fbOnValue('/bolao/predictions', data => {
     allPredictions = data || {};
+    renderPublicLeaderboard();
     if (currentTab === 'comparar') renderComparar();
     if (currentTab === 'ranking')  renderRanking();
   });
   fbOnValue('/bolao/knockout', data => {
     allKoPredictions = data || {};
+    renderPublicLeaderboard();
     if (currentTab === 'ranking') renderRanking();
   });
   fbOnValue('/bolao/results/group', data => {
     groupResults = data || {};
+    renderPublicLeaderboard();
     if (currentTab === 'ranking') renderRanking();
     if (currentTab === 'admin' && adminUnlocked) { renderAdminGroupBody(); updateAdminKoTeams(); }
   });
   fbOnValue('/bolao/results/knockout', data => {
     koResults = data || {};
+    renderPublicLeaderboard();
     if (currentTab === 'ranking') renderRanking();
     if (currentTab === 'admin' && adminUnlocked) updateAdminKoTeams();
   });
@@ -2107,6 +2180,8 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
     return;
   }
+
+  subscribeAll();
 
   document.getElementById('token-btn').addEventListener('click', handleTokenSubmit);
   document.getElementById('token-input').addEventListener('keydown', e => e.key === 'Enter' && handleTokenSubmit());
