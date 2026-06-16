@@ -282,6 +282,33 @@
       .ko-team { font-size: 0.75rem; }
     }
 
+    /* ── Ranking breakdown accordion ── */
+    .bd-section-title { font-size: 0.9rem; font-weight: 800; color: var(--text); margin: 1.5rem 0 0.65rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+    .bd-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 0.5rem; overflow: hidden; }
+    .bd-header { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 1rem; cursor: pointer; list-style: none; user-select: none; gap: 0.5rem; }
+    .bd-header::-webkit-details-marker { display: none; }
+    .bd-header-left { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; }
+    .bd-arrow { font-size: 0.6rem; color: var(--muted); transition: transform 0.18s; flex-shrink: 0; }
+    details.bd-card[open] .bd-arrow { transform: rotate(90deg); }
+    .bd-pts-badge { font-size: 0.82rem; font-weight: 800; color: var(--green); white-space: nowrap; flex-shrink: 0; }
+    .bd-body { padding: 0 1rem 0.9rem; border-top: 1px solid var(--border); }
+    .bd-phase { font-size: 0.68rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin: 0.8rem 0 0.35rem; }
+    .bd-stat { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.82rem; padding: 0.15rem 0; color: var(--muted); }
+    .bd-stat span:last-child { font-weight: 600; color: var(--text); font-size: 0.8rem; }
+    .bd-subtotal { display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 700; padding: 0.3rem 0 0; border-top: 1px solid #1E2D4540; margin-top: 0.25rem; }
+    .bd-stage { font-size: 0.73rem; font-weight: 700; color: var(--muted); margin: 0.55rem 0 0.2rem; }
+    .bd-ko-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.12rem 0; }
+    .bd-ko-row.hit { color: var(--text); }
+    .bd-ko-row.miss { color: var(--muted); }
+    .bd-ko-icon { width: 1rem; flex-shrink: 0; font-size: 0.78rem; }
+    .bd-ko-icon.hit { color: var(--green); }
+    .bd-ko-icon.miss { color: #ff5555; }
+    .bd-ko-pts { margin-left: auto; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+    .bd-ko-pts.hit { color: var(--green); }
+    .bd-ko-pts.miss { color: var(--muted); }
+    .bd-grand { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 800; padding: 0.45rem 0 0; border-top: 1px solid var(--border); margin-top: 0.55rem; }
+    .bd-grand span:last-child { color: var(--green); }
+
     /* ── Auth wrapper (stacks card + leaderboard) ── */
     .auth-wrap { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 1rem; padding: 1rem 0; }
 
@@ -1630,6 +1657,93 @@ function calcPlayerScore(playerGroupPreds, playerKoPreds) {
   return { groupPts, koPts, total: groupPts + koPts };
 }
 
+function calcPlayerScoreDetailed(playerGroupPreds, playerKoPreds) {
+  // ── Fase de grupos ──
+  let groupPts = 0, exactCount = 0, resultCount = 0;
+  const hasAnyGroupResult = Object.keys(groupResults).length > 0;
+  for (const m of MATCHES) {
+    const pred = playerGroupPreds[m.id];
+    const real = groupResults[m.id];
+    if (!hasPred(pred) || !hasPred(real)) continue;
+    const ph = parseInt(pred.h), pa = parseInt(pred.a);
+    const rh = parseInt(real.h), ra = parseInt(real.a);
+    if (ph === rh && pa === ra) { groupPts += 15; exactCount++; }
+    else if (Math.sign(ph - pa) === Math.sign(rh - ra)) { groupPts += 5; resultCount++; }
+  }
+
+  // ── Mata-mata ──
+  let koPts = 0;
+  const ko = playerKoPreds || {};
+
+  const realAllSt    = calcAllStandings(groupResults);
+  const realThAssign = solveThirds(realAllSt);
+  const realThirds   = rankThirds(realAllSt);
+  const realBracket  = buildAllKoTeams(realAllSt, realThAssign, realThirds, koResults);
+
+  const pAllSt    = calcAllStandings(playerGroupPreds);
+  const pThAssign = solveThirds(pAllSt);
+  const pThirds   = rankThirds(pAllSt);
+  const pBracket  = buildAllKoTeams(pAllSt, pThAssign, pThirds, ko);
+
+  const koStageDefs = [
+    { ids: ['M89','M90','M91','M92','M93','M94','M95','M96'], pts: 20, label: '16-avos de Final' },
+    { ids: ['M97','M98','M99','M100'],                        pts: 30, label: 'Quartas de Final' },
+    { ids: ['M101','M102'],                                   pts: 50, label: 'Semifinais' },
+    { ids: ['M104'],                                          pts: 75, label: 'Final' },
+  ];
+
+  const koStageDetails = koStageDefs.map(stage => {
+    const realT = new Set(), predT = new Set();
+    for (const mid of stage.ids) {
+      const rt = realBracket[mid], pt = pBracket[mid];
+      if (rt) { if (rt.home) realT.add(rt.home); if (rt.away) realT.add(rt.away); }
+      if (pt) { if (pt.home) predT.add(pt.home); if (pt.away) predT.add(pt.away); }
+    }
+    const teams = [];
+    let stageTotal = 0;
+    for (const t of realT) {
+      const hit = predT.has(t);
+      if (hit) { koPts += stage.pts; stageTotal += stage.pts; }
+      teams.push({ name: t, hit, pts: hit ? stage.pts : 0 });
+    }
+    return { label: stage.label, pts: stage.pts, teams, stageTotal };
+  });
+
+  // ── 3º Lugar ──
+  let thirdDetail = null;
+  const r3 = realBracket['M103'], p3 = pBracket['M103'];
+  if (r3 && p3) {
+    const rT3 = [r3.home, r3.away].filter(Boolean);
+    const pT3 = new Set([p3.home, p3.away].filter(Boolean));
+    let thirdTotal = 0;
+    const teams = rT3.map(t => {
+      const hit = pT3.has(t);
+      if (hit) { koPts += 50; thirdTotal += 50; }
+      return { name: t, hit, pts: hit ? 50 : 0 };
+    });
+    thirdDetail = { teams, stageTotal: thirdTotal };
+  }
+
+  // ── Campeão ──
+  let champDetail = null;
+  const rf = realBracket['M104'], rs = koResults['M104'];
+  if (rf && hasPred(rs)) {
+    const rh = parseInt(rs.h), ra = parseInt(rs.a);
+    const realChamp = rh > ra ? rf.home : ra > rh ? rf.away : null;
+    if (realChamp) {
+      const pf = pBracket['M104'], ps = ko['M104'];
+      let hit = false;
+      if (pf && hasPred(ps)) {
+        const ph = parseInt(ps.h), pa = parseInt(ps.a);
+        if ((ph > pa ? pf.home : pa > ph ? pf.away : null) === realChamp) { koPts += 200; hit = true; }
+      }
+      champDetail = { team: realChamp, hit, pts: hit ? 200 : 0 };
+    }
+  }
+
+  return { groupPts, koPts, total: groupPts + koPts, exactCount, resultCount, hasAnyGroupResult, koStageDetails, thirdDetail, champDetail };
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    RENDER — PUBLIC LEADERBOARD (pre-login, auth screen)
 ═══════════════════════════════════════════════════════════════════ */
@@ -1738,6 +1852,84 @@ function renderRanking() {
       </table>
       <p style="font-size:.74rem;color:var(--muted);padding:.4rem .75rem">Em caso de pênaltis, apenas o vencedor é considerado para o avanço.</p>
     </div>`;
+
+  // ── Breakdown por participante ──
+  html += `<div class="bd-section-title">Detalhamento por Participante</div>`;
+
+  scores.forEach(s => {
+    const d = calcPlayerScoreDetailed(allPredictions[s.name] || {}, allKoPredictions[s.name] || {});
+    const isMe = s.name === currentPlayer;
+
+    // Group section HTML
+    let groupHtml = '';
+    if (!d.hasAnyGroupResult) {
+      groupHtml = `<div class="bd-stat"><span style="font-style:italic">Nenhum jogo com resultado ainda</span></div>`;
+    } else {
+      groupHtml += d.exactCount > 0
+        ? `<div class="bd-stat"><span>Placares exatos</span><span>${d.exactCount} × 15 = <strong>${d.exactCount * 15}pts</strong></span></div>`
+        : `<div class="bd-stat"><span>Placares exatos</span><span style="color:var(--muted)">0</span></div>`;
+      groupHtml += d.resultCount > 0
+        ? `<div class="bd-stat"><span>Resultados certos</span><span>${d.resultCount} × 5 = <strong>${d.resultCount * 5}pts</strong></span></div>`
+        : `<div class="bd-stat"><span>Resultados certos</span><span style="color:var(--muted)">0</span></div>`;
+    }
+    groupHtml += `<div class="bd-subtotal"><span>Subtotal grupos</span><span>${d.groupPts}pts</span></div>`;
+
+    // KO section HTML
+    let koHtml = '';
+    const hasAnyKoData = d.koStageDetails.some(st => st.teams.length > 0) || d.thirdDetail || d.champDetail;
+    if (!hasAnyKoData) {
+      koHtml = `<div class="bd-stat"><span style="font-style:italic">Aguardando resultados do mata-mata</span></div>`;
+    } else {
+      for (const stage of d.koStageDetails) {
+        if (!stage.teams.length) continue;
+        koHtml += `<div class="bd-stage">${stage.label} · ${stage.pts}pts/time</div>`;
+        for (const t of stage.teams) {
+          const cls = t.hit ? 'hit' : 'miss';
+          koHtml += `<div class="bd-ko-row ${cls}">
+            <span class="bd-ko-icon ${cls}">${t.hit ? '✓' : '✗'}</span>
+            <span>${t.name}</span>
+            <span class="bd-ko-pts ${cls}">${t.hit ? `+${t.pts}` : '—'}</span>
+          </div>`;
+        }
+      }
+      if (d.thirdDetail && d.thirdDetail.teams.length) {
+        koHtml += `<div class="bd-stage">3º Lugar · 50pts/time</div>`;
+        for (const t of d.thirdDetail.teams) {
+          const cls = t.hit ? 'hit' : 'miss';
+          koHtml += `<div class="bd-ko-row ${cls}">
+            <span class="bd-ko-icon ${cls}">${t.hit ? '✓' : '✗'}</span>
+            <span>${t.name}</span>
+            <span class="bd-ko-pts ${cls}">${t.hit ? `+${t.pts}` : '—'}</span>
+          </div>`;
+        }
+      }
+      if (d.champDetail) {
+        const cls = d.champDetail.hit ? 'hit' : 'miss';
+        koHtml += `<div class="bd-stage">Bônus Campeão · 200pts</div>
+          <div class="bd-ko-row ${cls}">
+            <span class="bd-ko-icon ${cls}">${d.champDetail.hit ? '✓' : '✗'}</span>
+            <span>${d.champDetail.team}</span>
+            <span class="bd-ko-pts ${cls}">${d.champDetail.hit ? '+200' : '—'}</span>
+          </div>`;
+      }
+    }
+    koHtml += `<div class="bd-subtotal"><span>Subtotal mata-mata</span><span>${d.koPts}pts</span></div>`;
+
+    html += `
+    <details class="bd-card"${isMe ? ' open' : ''}>
+      <summary class="bd-header">
+        <span class="bd-header-left"><span class="bd-arrow">▶</span>${s.name}</span>
+        <span class="bd-pts-badge">${s.total} pts</span>
+      </summary>
+      <div class="bd-body">
+        <div class="bd-phase">Fase de Grupos</div>
+        ${groupHtml}
+        <div class="bd-phase" style="margin-top:0.9rem">Mata-mata</div>
+        ${koHtml}
+        <div class="bd-grand"><span>Total</span><span>${s.total} pts</span></div>
+      </div>
+    </details>`;
+  });
 
   body.innerHTML = html;
 }
