@@ -1071,7 +1071,7 @@ const BRACKET = {
 
 const BRACKET_ROUNDS = [
   { label: '32-avos de Final',    ids: ['M73','M74','M75','M76','M77','M78','M79','M80','M81','M82','M83','M84','M85','M86','M87','M88'] },
-  { label: '16-avos de Final',    ids: ['M89','M90','M91','M92','M93','M94','M95','M96'] },
+  { label: 'Oitavas de Final',    ids: ['M89','M90','M91','M92','M93','M94','M95','M96'] },
   { label: 'Quartas de Final',    ids: ['M97','M98','M99','M100'] },
   { label: 'Semifinais',          ids: ['M101','M102'] },
   { label: 'Disputa do 3º Lugar', ids: ['M103'] },
@@ -1590,6 +1590,24 @@ function renderComparar() {
    SCORING
 ═══════════════════════════════════════════════════════════════════ */
 
+const ALL_KO_IDS = BRACKET_ROUNDS.flatMap(r => r.ids);
+
+// Score points (exact/result) for a single knockout match — only awarded
+// if the player predicted both teams in that match slot correctly.
+function koMatchScorePts(rt, pt, realScore, predScore) {
+  if (!rt || !pt || !rt.home || !rt.away || !pt.home || !pt.away) return 0;
+  if (!hasPred(realScore) || !hasPred(predScore)) return 0;
+  if (!((pt.home === rt.home || pt.home === rt.away) && (pt.away === rt.home || pt.away === rt.away))) return 0;
+
+  let ph = parseInt(predScore.h), pa = parseInt(predScore.a);
+  const rh = parseInt(realScore.h), ra = parseInt(realScore.a);
+  if (pt.home !== rt.home) [ph, pa] = [pa, ph]; // align orientation when sides are swapped
+
+  if (ph === rh && pa === ra) return 15;
+  if (Math.sign(ph - pa) === Math.sign(rh - ra)) return 5;
+  return 0;
+}
+
 function calcPlayerScore(playerGroupPreds, playerKoPreds) {
   let groupPts = 0;
   for (const m of MATCHES) {
@@ -1616,10 +1634,11 @@ function calcPlayerScore(playerGroupPreds, playerKoPreds) {
   const pBracket  = buildAllKoTeams(pAllSt, pThAssign, pThirds, ko);
 
   const koStages = [
-    { ids: ['M89','M90','M91','M92','M93','M94','M95','M96'], pts: 20 },
-    { ids: ['M97','M98','M99','M100'],                        pts: 30 },
-    { ids: ['M101','M102'],                                   pts: 50 },
-    { ids: ['M104'],                                          pts: 75 },
+    { ids: ['M73','M74','M75','M76','M77','M78','M79','M80','M81','M82','M83','M84','M85','M86','M87','M88'], pts: 20 },
+    { ids: ['M89','M90','M91','M92','M93','M94','M95','M96'], pts: 30 },
+    { ids: ['M97','M98','M99','M100'],                        pts: 50 },
+    { ids: ['M101','M102'],                                   pts: 70 },
+    { ids: ['M104'],                                          pts: 100 },
   ];
   for (const stage of koStages) {
     const realT = new Set(), predT = new Set();
@@ -1629,6 +1648,11 @@ function calcPlayerScore(playerGroupPreds, playerKoPreds) {
       if (pt) { if (pt.home) predT.add(pt.home); if (pt.away) predT.add(pt.away); }
     }
     for (const t of realT) if (predT.has(t)) koPts += stage.pts;
+  }
+
+  // Score points (exact/result) per knockout match — requires both teams correct
+  for (const mid of ALL_KO_IDS) {
+    koPts += koMatchScorePts(realBracket[mid], pBracket[mid], koResults[mid], ko[mid]);
   }
 
   // Champion bonus
@@ -1641,17 +1665,9 @@ function calcPlayerScore(playerGroupPreds, playerKoPreds) {
       if (pf && hasPred(ps)) {
         const ph = parseInt(ps.h), pa = parseInt(ps.a);
         const predChamp = ph > pa ? pf.home : pa > ph ? pf.away : null;
-        if (predChamp === realChamp) koPts += 200;
+        if (predChamp === realChamp) koPts += 150;
       }
     }
-  }
-
-  // 3rd place
-  const r3 = realBracket['M103'], p3 = pBracket['M103'];
-  if (r3 && p3) {
-    const rT3 = [r3.home, r3.away].filter(Boolean);
-    const pT3 = new Set([p3.home, p3.away].filter(Boolean));
-    for (const t of rT3) if (pT3.has(t)) koPts += 50;
   }
 
   return { groupPts, koPts, total: groupPts + koPts };
@@ -1686,10 +1702,11 @@ function calcPlayerScoreDetailed(playerGroupPreds, playerKoPreds) {
   const pBracket  = buildAllKoTeams(pAllSt, pThAssign, pThirds, ko);
 
   const koStageDefs = [
-    { ids: ['M89','M90','M91','M92','M93','M94','M95','M96'], pts: 20, label: '16-avos de Final' },
-    { ids: ['M97','M98','M99','M100'],                        pts: 30, label: 'Quartas de Final' },
-    { ids: ['M101','M102'],                                   pts: 50, label: 'Semifinais' },
-    { ids: ['M104'],                                          pts: 75, label: 'Final' },
+    { ids: ['M73','M74','M75','M76','M77','M78','M79','M80','M81','M82','M83','M84','M85','M86','M87','M88'], pts: 20, label: '32-avos de Final' },
+    { ids: ['M89','M90','M91','M92','M93','M94','M95','M96'], pts: 30, label: 'Oitavas de Final' },
+    { ids: ['M97','M98','M99','M100'],                        pts: 50, label: 'Quartas de Final' },
+    { ids: ['M101','M102'],                                   pts: 70, label: 'Semifinais' },
+    { ids: ['M104'],                                          pts: 100, label: 'Final' },
   ];
 
   const koStageDetails = koStageDefs.map(stage => {
@@ -1709,19 +1726,12 @@ function calcPlayerScoreDetailed(playerGroupPreds, playerKoPreds) {
     return { label: stage.label, pts: stage.pts, teams, stageTotal };
   });
 
-  // ── 3º Lugar ──
-  let thirdDetail = null;
-  const r3 = realBracket['M103'], p3 = pBracket['M103'];
-  if (r3 && p3) {
-    const rT3 = [r3.home, r3.away].filter(Boolean);
-    const pT3 = new Set([p3.home, p3.away].filter(Boolean));
-    let thirdTotal = 0;
-    const teams = rT3.map(t => {
-      const hit = pT3.has(t);
-      if (hit) { koPts += 50; thirdTotal += 50; }
-      return { name: t, hit, pts: hit ? 50 : 0 };
-    });
-    thirdDetail = { teams, stageTotal: thirdTotal };
+  // ── Placares mata-mata (exige os dois times corretos no confronto) ──
+  let koExactCount = 0, koResultCount = 0;
+  for (const mid of ALL_KO_IDS) {
+    const pts = koMatchScorePts(realBracket[mid], pBracket[mid], koResults[mid], ko[mid]);
+    if (pts === 15) { koPts += 15; koExactCount++; }
+    else if (pts === 5) { koPts += 5; koResultCount++; }
   }
 
   // ── Campeão ──
@@ -1735,13 +1745,13 @@ function calcPlayerScoreDetailed(playerGroupPreds, playerKoPreds) {
       let hit = false;
       if (pf && hasPred(ps)) {
         const ph = parseInt(ps.h), pa = parseInt(ps.a);
-        if ((ph > pa ? pf.home : pa > ph ? pf.away : null) === realChamp) { koPts += 200; hit = true; }
+        if ((ph > pa ? pf.home : pa > ph ? pf.away : null) === realChamp) { koPts += 150; hit = true; }
       }
-      champDetail = { team: realChamp, hit, pts: hit ? 200 : 0 };
+      champDetail = { team: realChamp, hit, pts: hit ? 150 : 0 };
     }
   }
 
-  return { groupPts, koPts, total: groupPts + koPts, exactCount, resultCount, hasAnyGroupResult, koStageDetails, thirdDetail, champDetail };
+  return { groupPts, koPts, total: groupPts + koPts, exactCount, resultCount, hasAnyGroupResult, koStageDetails, koExactCount, koResultCount, champDetail };
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1842,15 +1852,27 @@ function renderRanking() {
       <table>
         <thead><tr><th style="text-align:left">Fase</th><th>Pts/time</th></tr></thead>
         <tbody>
-          <tr><td style="text-align:left">16-avos de Final</td><td><strong>20</strong></td></tr>
-          <tr><td style="text-align:left">Quartas de Final</td><td><strong>30</strong></td></tr>
-          <tr><td style="text-align:left">Semifinais</td><td><strong>50</strong></td></tr>
-          <tr><td style="text-align:left">Final (por finalista)</td><td><strong>75</strong></td></tr>
-          <tr><td style="text-align:left">Campeão (bônus)</td><td><strong>200</strong></td></tr>
-          <tr><td style="text-align:left">3º Lugar M103 (por time)</td><td><strong>50</strong></td></tr>
+          <tr><td style="text-align:left">32-avos de Final</td><td><strong>20</strong></td></tr>
+          <tr><td style="text-align:left">Oitavas de Final</td><td><strong>30</strong></td></tr>
+          <tr><td style="text-align:left">Quartas de Final</td><td><strong>50</strong></td></tr>
+          <tr><td style="text-align:left">Semifinais</td><td><strong>70</strong></td></tr>
+          <tr><td style="text-align:left">Final (por finalista)</td><td><strong>100</strong></td></tr>
+          <tr><td style="text-align:left">Campeão (bônus)</td><td><strong>150</strong></td></tr>
         </tbody>
       </table>
       <p style="font-size:.74rem;color:var(--muted);padding:.4rem .75rem">Em caso de pênaltis, apenas o vencedor é considerado para o avanço.</p>
+    </div>
+    <div class="standings-card" style="margin-top:.75rem">
+      <div class="card-header">Mata-mata — placar do confronto</div>
+      <table>
+        <thead><tr><th style="text-align:left">Acerto</th><th>Pts</th></tr></thead>
+        <tbody>
+          <tr><td style="text-align:left">Placar exato</td><td><strong>15</strong></td></tr>
+          <tr><td style="text-align:left">Resultado correto (V/E/D)</td><td><strong>5</strong></td></tr>
+          <tr><td style="text-align:left">Errou</td><td>0</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:.74rem;color:var(--muted);padding:.4rem .75rem">Só conta se o jogador previu corretamente os dois times daquele confronto.</p>
     </div>`;
 
   // ── Breakdown por participante ──
@@ -1876,10 +1898,16 @@ function renderRanking() {
 
     // KO section HTML
     let koHtml = '';
-    const hasAnyKoData = d.koStageDetails.some(st => st.teams.length > 0) || d.thirdDetail || d.champDetail;
+    const hasAnyKoData = d.koStageDetails.some(st => st.teams.length > 0) || d.champDetail || d.koExactCount > 0 || d.koResultCount > 0;
     if (!hasAnyKoData) {
       koHtml = `<div class="bd-stat"><span style="font-style:italic">Aguardando resultados do mata-mata</span></div>`;
     } else {
+      if (d.koExactCount > 0) {
+        koHtml += `<div class="bd-stat"><span>Placares exatos (confronto certo)</span><span>${d.koExactCount} × 15 = <strong>${d.koExactCount * 15}pts</strong></span></div>`;
+      }
+      if (d.koResultCount > 0) {
+        koHtml += `<div class="bd-stat"><span>Resultados certos (confronto certo)</span><span>${d.koResultCount} × 5 = <strong>${d.koResultCount * 5}pts</strong></span></div>`;
+      }
       for (const stage of d.koStageDetails) {
         if (!stage.teams.length) continue;
         koHtml += `<div class="bd-stage">${stage.label} · ${stage.pts}pts/time</div>`;
@@ -1892,24 +1920,13 @@ function renderRanking() {
           </div>`;
         }
       }
-      if (d.thirdDetail && d.thirdDetail.teams.length) {
-        koHtml += `<div class="bd-stage">3º Lugar · 50pts/time</div>`;
-        for (const t of d.thirdDetail.teams) {
-          const cls = t.hit ? 'hit' : 'miss';
-          koHtml += `<div class="bd-ko-row ${cls}">
-            <span class="bd-ko-icon ${cls}">${t.hit ? '✓' : '✗'}</span>
-            <span>${t.name}</span>
-            <span class="bd-ko-pts ${cls}">${t.hit ? `+${t.pts}` : '—'}</span>
-          </div>`;
-        }
-      }
       if (d.champDetail) {
         const cls = d.champDetail.hit ? 'hit' : 'miss';
-        koHtml += `<div class="bd-stage">Bônus Campeão · 200pts</div>
+        koHtml += `<div class="bd-stage">Bônus Campeão · 150pts</div>
           <div class="bd-ko-row ${cls}">
             <span class="bd-ko-icon ${cls}">${d.champDetail.hit ? '✓' : '✗'}</span>
             <span>${d.champDetail.team}</span>
-            <span class="bd-ko-pts ${cls}">${d.champDetail.hit ? '+200' : '—'}</span>
+            <span class="bd-ko-pts ${cls}">${d.champDetail.hit ? '+150' : '—'}</span>
           </div>`;
       }
     }
@@ -2185,9 +2202,9 @@ function generatePDF() {
   }
   html += `</div></div>`;
 
-  // Mata-mata — 32-avos e 16-avos em 2 colunas, demais fases em coluna única
+  // Mata-mata — 32-avos e oitavas em 2 colunas, demais fases em coluna única
   html += `<div class="print-section"><h2>Mata-mata</h2>`;
-  const koWide      = ['32-avos de Final', '16-avos de Final'];
+  const koWide      = ['32-avos de Final', 'Oitavas de Final'];
   const laterRounds = BRACKET_ROUNDS.filter(r => !koWide.includes(r.label));
 
   for (const round of BRACKET_ROUNDS.filter(r => koWide.includes(r.label))) {
